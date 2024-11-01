@@ -113,9 +113,9 @@
             }
 
             // Przesunięcie bloków
-            if (Math.random() < intensity * 0.3) {
+            if (Math.random() < intensity * 0.8) {
                 const blockY = Math.random() * h;
-                const blockHeight = 50;
+                const blockHeight = 100;
                 const imageData = ctx.getImageData(0, blockY, w, blockHeight);
                 ctx.putImageData(imageData, intensity * 100 * (Math.random() - 0.5), blockY);
             }
