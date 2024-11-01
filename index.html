@@ -19,15 +19,18 @@
             padding: 15px 30px;
             font-size: 18px;
             background: rgba(255,255,255,0.1);
-            border: 2px solid white;
-            color: white;
+            border: 2px solid #0ff;
+            color: #0ff;
             cursor: pointer;
             border-radius: 5px;
             font-family: Arial, sans-serif;
             transition: all 0.3s ease;
+            text-shadow: 0 0 10px #0ff;
+            box-shadow: 0 0 20px rgba(0,255,255,0.3);
         }
         #startBtn:hover {
-            background: rgba(255,255,255,0.2);
+            background: rgba(0,255,255,0.2);
+            box-shadow: 0 0 30px rgba(0,255,255,0.5);
         }
     </style>
 </head>
@@ -43,8 +46,9 @@
         let audioCtx;
         let analyser;
         let dataArray;
-        let animationId;
         let isPlaying = false;
+        let time = 0;
+        let particles = [];
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -53,6 +57,36 @@
         
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
+
+        class Particle {
+            constructor(x, y, size, hue, speedX, speedY) {
+                this.x = x;
+                this.y = y;
+                this.size = size;
+                this.hue = hue;
+                this.speedX = speedX;
+                this.speedY = speedY;
+                this.alpha = 1;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.alpha -= 0.01;
+                this.size *= 0.99;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${this.hue}, 100%, 50%, ${this.alpha})`;
+                ctx.fill();
+                
+                // Neon glow effect
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = `hsl(${this.hue}, 100%, 50%)`;
+            }
+        }
 
         startBtn.addEventListener('click', async () => {
             if (!audioCtx) {
@@ -76,75 +110,102 @@
             }
         });
 
-        function getColorForFrequency(value) {
-            // Gradient from purple to blue to cyan
-            const hue = 180 + (value / 255) * 60;
-            return `hsl(${hue}, 70%, 50%)`;
+        function createParticles(x, y, intensity) {
+            const count = Math.floor(intensity / 20);
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 2 + 1;
+                const size = Math.random() * 3 + 2;
+                const hue = Math.random() * 60 + time * 10;
+                particles.push(new Particle(
+                    x,
+                    y,
+                    size,
+                    hue,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed
+                ));
+            }
         }
 
         function drawVisualization() {
             analyser.getByteFrequencyData(dataArray);
             
-            // Semi-transparent fade effect
+            // Fade effect
             ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
-            const maxRadius = Math.min(canvas.width, canvas.height) * 0.4;
+            const radius = Math.min(canvas.width, canvas.height) * 0.3;
             
-            // Draw circular visualizer
-            const binCount = 180; // Number of frequency bins to display
+            // Reset shadow for main drawing
+            ctx.shadowBlur = 0;
+            
+            // Draw main circular visualizer
+            const binCount = 128;
             const angleStep = (Math.PI * 2) / binCount;
-            const radiusStep = maxRadius / 32;
             
             for (let i = 0; i < binCount; i++) {
                 const value = dataArray[i];
-                const angle = i * angleStep;
+                const angle = i * angleStep - Math.PI / 2;
                 
-                // Inner circle
-                let radius = maxRadius * 0.2 + (value / 255) * radiusStep;
-                const x1 = centerX + Math.cos(angle) * radius;
-                const y1 = centerY + Math.sin(angle) * radius;
+                // Calculate positions
+                const length = radius + (value * 1.5);
+                const x = centerX + Math.cos(angle + time * 0.3) * length;
+                const y = centerY + Math.sin(angle + time * 0.3) * length;
                 
-                // Outer circle
-                radius = maxRadius * 0.6 + (value / 255) * radiusStep;
-                const x2 = centerX + Math.cos(angle) * radius;
-                const y2 = centerY + Math.sin(angle) * radius;
-                
-                // Draw lines
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = getColorForFrequency(value);
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                // Draw glow effect
+                // Create particles on high frequencies
                 if (value > 200) {
-                    ctx.beginPath();
-                    const glowRadius = 5 + (value / 255) * 10;
-                    ctx.arc(x2, y2, glowRadius, 0, Math.PI * 2);
-                    const gradient = ctx.createRadialGradient(x2, y2, 0, x2, y2, glowRadius);
-                    gradient.addColorStop(0, `hsla(${180 + (value / 255) * 60}, 70%, 50%, 0.3)`);
-                    gradient.addColorStop(1, 'transparent');
-                    ctx.fillStyle = gradient;
-                    ctx.fill();
+                    createParticles(x, y, value);
                 }
+
+                // Draw connecting lines
+                ctx.beginPath();
+                ctx.moveTo(
+                    centerX + Math.cos(angle + time * 0.3) * radius,
+                    centerY + Math.sin(angle + time * 0.3) * radius
+                );
+                ctx.lineTo(x, y);
+                
+                // Neon effect for lines
+                ctx.strokeStyle = `hsl(${time * 10 + i * 2}, 100%, 50%)`;
+                ctx.lineWidth = value / 50;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = `hsl(${time * 10 + i * 2}, 100%, 50%)`;
+                ctx.stroke();
             }
-            
+
+            // Update and draw particles
+            particles = particles.filter(p => p.alpha > 0);
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+
             // Draw center circle
-            const bassValue = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
+            const bassValue = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 2000;
             ctx.beginPath();
-            ctx.arc(centerX, centerY, maxRadius * 0.15 * (1 + bassValue/255 * 0.2), 0, Math.PI * 2);
-            ctx.fillStyle = `hsla(180, 70%, ${40 + bassValue/255 * 20}%, 0.3)`;
+            ctx.arc(centerX, centerY, radius * bassValue, 0, Math.PI * 2);
+            const gradient = ctx.createRadialGradient(
+                centerX, centerY, 0,
+                centerX, centerY, radius * bassValue
+            );
+            gradient.addColorStop(0, `hsla(${time * 10}, 100%, 50%, 0.8)`);
+            gradient.addColorStop(1, 'transparent');
+            ctx.fillStyle = gradient;
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = `hsl(${time * 10}, 100%, 50%)`;
             ctx.fill();
+            
+            // Update time
+            time += 0.05;
         }
 
         function animate() {
             if (!isPlaying) return;
             drawVisualization();
-            animationId = requestAnimationFrame(animate);
+            requestAnimationFrame(animate);
         }
     </script>
 </body>
