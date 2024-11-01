@@ -46,7 +46,6 @@
         let analyser;
         let dataArray;
         let isPlaying = false;
-        let time = 0;
         let points = [];
         
         const colors = [
@@ -79,7 +78,7 @@
                         y: y * cellHeight,
                         baseX: x * cellWidth,
                         baseY: y * cellHeight,
-                        angle: Math.random() * Math.PI * 2
+                        angle: 0
                     });
                 }
             }
@@ -117,17 +116,16 @@
 
         function updatePoints(frequencyData) {
             const bassValue = frequencyData.slice(0, 10).reduce((a, b) => a + b, 0) / 800;
-            const midValue = frequencyData.slice(100, 200).reduce((a, b) => a + b, 0) / 4000;
             
             points.forEach((point, i) => {
-                point.angle += 0.03 + bassValue * 0.02;
+                point.angle += bassValue * 0.05;
                 
                 const distanceFromCenter = Math.hypot(
                     point.baseX - canvas.width/2,
                     point.baseY - canvas.height/2
                 ) / Math.hypot(canvas.width/2, canvas.height/2);
                 
-                const amplitude = 180 * (1 - distanceFromCenter) * (1 + bassValue * 5);
+                const amplitude = 180 * (1 - distanceFromCenter) * bassValue * 5;
                 
                 point.x = point.baseX + Math.cos(point.angle) * amplitude;
                 point.y = point.baseY + Math.sin(point.angle * 1.5) * amplitude;
@@ -210,7 +208,6 @@
             analyser.getByteFrequencyData(dataArray);
             updatePoints(dataArray);
             drawLiquidShape(dataArray);
-            time += 0.01;
             requestAnimationFrame(animate);
         }
     </script>
