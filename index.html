@@ -5,7 +5,7 @@
         body { 
             margin: 0;
             overflow: hidden;
-            background: #0a0a0a;
+            background: #1a1a2e;
         }
         canvas {
             width: 100vw;
@@ -19,8 +19,8 @@
             padding: 15px 30px;
             font-size: 16px;
             background: transparent;
-            border: 1px solid rgba(255,255,255,0.2);
-            color: rgba(255,255,255,0.8);
+            border: 1px solid rgba(255,255,255,0.5);
+            color: rgba(255,255,255,0.9);
             cursor: pointer;
             border-radius: 25px;
             font-family: monospace;
@@ -28,8 +28,8 @@
             letter-spacing: 2px;
         }
         #startBtn:hover {
-            background: rgba(255,255,255,0.05);
-            border-color: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.8);
         }
     </style>
 </head>
@@ -49,11 +49,12 @@
         let time = 0;
         let points = [];
         
-        // Kolory w stylu mrocznym/minimalistycznym
+        // Jaśniejsza paleta kolorów
         const colors = [
-            { r: 20, g: 20, b: 25 },    // Ciemny granatowy
-            { r: 40, g: 35, b: 45 },    // Ciemny fioletowy
-            { r: 25, g: 30, b: 35 }     // Ciemny niebieskoszary
+            { r: 100, g: 180, b: 255 },    // Jasny niebieski
+            { r: 150, g: 120, b: 255 },    // Jasny fioletowy
+            { r: 255, g: 130, b: 180 },    // Jasny różowy
+            { r: 130, g: 255, b: 200 }     // Jasny turkusowy
         ];
 
         function resizeCanvas() {
@@ -65,7 +66,6 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Inicjalizacja punktów kontrolnych dla krzywych
         function initPoints() {
             points = [];
             const rows = 5;
@@ -128,7 +128,7 @@
                     point.baseY - canvas.height/2
                 ) / Math.hypot(canvas.width/2, canvas.height/2);
                 
-                const amplitude = 50 * (1 - distanceFromCenter) * (1 + bassValue * 2);
+                const amplitude = 70 * (1 - distanceFromCenter) * (1 + bassValue * 2);
                 const frequency = 0.002 + midValue * 0.001;
                 
                 point.x = point.baseX + Math.cos(point.angle) * amplitude;
@@ -137,10 +137,20 @@
         }
 
         function drawLiquidShape(frequencyData) {
-            ctx.fillStyle = '#0a0a0a';
+            // Ciemne, ale nie czarne tło
+            ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Rysowanie płynnych gradientów
+            // Dodaj subtelną poświatę w tle
+            const gradient = ctx.createRadialGradient(
+                canvas.width/2, canvas.height/2, 0,
+                canvas.width/2, canvas.height/2, canvas.width/2
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
             for (let row = 0; row < 4; row++) {
                 for (let col = 0; col < 4; col++) {
                     const index = row * 5 + col;
@@ -149,44 +159,55 @@
                     const p2 = points[index + 5];
                     const p3 = points[index + 6];
 
-                    // Tworzenie gradientu dla każdego segmentu
-                    const gradient = ctx.createLinearGradient(
-                        p0.x, p0.y,
-                        p3.x, p3.y
-                    );
-
                     const freqIndex = (row * 4 + col) * 8;
                     const intensity = frequencyData.slice(freqIndex, freqIndex + 8).reduce((a, b) => a + b, 0) / 2040;
+                    
+                    // Rysuj cień dla efektu głębi
+                    ctx.beginPath();
+                    ctx.moveTo(p0.x + 5, p0.y + 5);
+                    
+                    const cpX1 = p0.x + (p3.x - p0.x) / 3 + 5;
+                    const cpY1 = p0.y + (p3.y - p0.y) / 3 + 5;
+                    const cpX2 = p0.x + 2 * (p3.x - p0.x) / 3 + 5;
+                    const cpY2 = p0.y + 2 * (p3.y - p0.y) / 3 + 5;
+                    
+                    ctx.bezierCurveTo(cpX1, cpY1, cpX2, cpY2, p3.x + 5, p3.y + 5);
+                    ctx.lineTo(p2.x + 5, p2.y + 5);
+                    
+                    const cpX3 = p2.x + (p1.x - p2.x) / 3 + 5;
+                    const cpY3 = p2.y + (p1.y - p2.y) / 3 + 5;
+                    const cpX4 = p2.x + 2 * (p1.x - p2.x) / 3 + 5;
+                    const cpY4 = p2.y + 2 * (p1.y - p2.y) / 3 + 5;
+                    
+                    ctx.bezierCurveTo(cpX3, cpY3, cpX4, cpY4, p1.x + 5, p1.y + 5);
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                    ctx.fill();
+
+                    // Główny kształt
+                    ctx.beginPath();
+                    ctx.moveTo(p0.x, p0.y);
                     
                     const color1 = colors[row % colors.length];
                     const color2 = colors[(row + 1) % colors.length];
                     const mixedColor = lerpColor(color1, color2, intensity);
 
-                    gradient.addColorStop(0, `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.4)`);
-                    gradient.addColorStop(1, `rgba(${color2.r}, ${color2.g}, ${color2.b}, 0.1)`);
+                    const shapeGradient = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
+                    shapeGradient.addColorStop(0, `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.8)`);
+                    shapeGradient.addColorStop(1, `rgba(${color2.r}, ${color2.g}, ${color2.b}, 0.6)`);
 
-                    ctx.beginPath();
-                    ctx.moveTo(p0.x, p0.y);
-                    
-                    // Kontrolne punkty dla krzywej Beziera
-                    const cpX1 = p0.x + (p3.x - p0.x) / 3;
-                    const cpY1 = p0.y + (p3.y - p0.y) / 3;
-                    const cpX2 = p0.x + 2 * (p3.x - p0.x) / 3;
-                    const cpY2 = p0.y + 2 * (p3.y - p0.y) / 3;
-                    
-                    ctx.bezierCurveTo(cpX1, cpY1, cpX2, cpY2, p3.x, p3.y);
+                    ctx.bezierCurveTo(cpX1-5, cpY1-5, cpX2-5, cpY2-5, p3.x, p3.y);
                     ctx.lineTo(p2.x, p2.y);
-                    
-                    const cpX3 = p2.x + (p1.x - p2.x) / 3;
-                    const cpY3 = p2.y + (p1.y - p2.y) / 3;
-                    const cpX4 = p2.x + 2 * (p1.x - p2.x) / 3;
-                    const cpY4 = p2.y + 2 * (p1.y - p2.y) / 3;
-                    
-                    ctx.bezierCurveTo(cpX3, cpY3, cpX4, cpY4, p1.x, p1.y);
+                    ctx.bezierCurveTo(cpX3-5, cpY3-5, cpX4-5, cpY4-5, p1.x, p1.y);
                     ctx.closePath();
                     
-                    ctx.fillStyle = gradient;
+                    ctx.fillStyle = shapeGradient;
                     ctx.fill();
+
+                    // Dodaj świecące krawędzie
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 + intensity * 0.3})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
                 }
             }
         }
