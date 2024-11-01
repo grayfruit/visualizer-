@@ -32,16 +32,37 @@
             background: rgba(0,255,255,0.2);
             box-shadow: 0 0 30px rgba(0,255,255,0.5);
         }
+        #disco {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Arial Black', sans-serif;
+            font-size: 120px;
+            font-weight: bold;
+            color: #ff00ff;
+            text-shadow: 
+                0 0 20px #ff00ff,
+                0 0 30px #ff00ff,
+                0 0 40px #ff00ff,
+                0 0 50px #ff00ff;
+            opacity: 0.8;
+            pointer-events: none;
+            letter-spacing: 10px;
+            transition: all 0.1s ease;
+        }
     </style>
 </head>
 <body>
     <button id="startBtn">Start Visualization</button>
+    <div id="disco">DISCO</div>
     <canvas id="canvas"></canvas>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
+        const discoText = document.getElementById('disco');
         
         let audioCtx;
         let analyser;
@@ -81,8 +102,6 @@
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 ctx.fillStyle = `hsla(${this.hue}, 100%, 50%, ${this.alpha})`;
                 ctx.fill();
-                
-                // Neon glow effect
                 ctx.shadowBlur = 20;
                 ctx.shadowColor = `hsl(${this.hue}, 100%, 50%)`;
             }
@@ -101,6 +120,7 @@
                     
                     dataArray = new Uint8Array(analyser.frequencyBinCount);
                     startBtn.style.display = 'none';
+                    discoText.style.display = 'block';
                     isPlaying = true;
                     animate();
                 } catch (err) {
@@ -116,7 +136,7 @@
                 const angle = Math.random() * Math.PI * 2;
                 const speed = Math.random() * 2 + 1;
                 const size = Math.random() * 3 + 2;
-                const hue = Math.random() * 60 + time * 10;
+                const hue = 300 + Math.random() * 60; // Tylko różowe/fioletowe odcienie
                 particles.push(new Particle(
                     x,
                     y,
@@ -128,10 +148,22 @@
             }
         }
 
+        function updateDiscoText(bassValue) {
+            // Pulsowanie napisem w rytm basów
+            const scale = 1 + bassValue * 0.3;
+            const brightness = 50 + bassValue * 200;
+            discoText.style.transform = `translate(-50%, -50%) scale(${scale})`;
+            discoText.style.textShadow = `
+                0 0 ${20 + bassValue * 30}px #ff00ff,
+                0 0 ${30 + bassValue * 40}px #ff00ff,
+                0 0 ${40 + bassValue * 50}px #ff00ff,
+                0 0 ${50 + bassValue * 60}px #ff00ff
+            `;
+        }
+
         function drawVisualization() {
             analyser.getByteFrequencyData(dataArray);
             
-            // Fade effect
             ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -139,10 +171,12 @@
             const centerY = canvas.height / 2;
             const radius = Math.min(canvas.width, canvas.height) * 0.3;
             
-            // Reset shadow for main drawing
             ctx.shadowBlur = 0;
             
-            // Draw main circular visualizer
+            // Analiza basów dla napisu DISCO
+            const bassValue = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 2000;
+            updateDiscoText(bassValue);
+            
             const binCount = 128;
             const angleStep = (Math.PI * 2) / binCount;
             
@@ -150,17 +184,14 @@
                 const value = dataArray[i];
                 const angle = i * angleStep - Math.PI / 2;
                 
-                // Calculate positions
                 const length = radius + (value * 1.5);
                 const x = centerX + Math.cos(angle + time * 0.3) * length;
                 const y = centerY + Math.sin(angle + time * 0.3) * length;
                 
-                // Create particles on high frequencies
                 if (value > 200) {
                     createParticles(x, y, value);
                 }
 
-                // Draw connecting lines
                 ctx.beginPath();
                 ctx.moveTo(
                     centerX + Math.cos(angle + time * 0.3) * radius,
@@ -168,37 +199,34 @@
                 );
                 ctx.lineTo(x, y);
                 
-                // Neon effect for lines
-                ctx.strokeStyle = `hsl(${time * 10 + i * 2}, 100%, 50%)`;
+                const hue = 300 + (i * 60 / binCount); // Różowe/fioletowe odcienie
+                ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
                 ctx.lineWidth = value / 50;
                 ctx.shadowBlur = 20;
-                ctx.shadowColor = `hsl(${time * 10 + i * 2}, 100%, 50%)`;
+                ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
                 ctx.stroke();
             }
 
-            // Update and draw particles
             particles = particles.filter(p => p.alpha > 0);
             particles.forEach(particle => {
                 particle.update();
                 particle.draw();
             });
 
-            // Draw center circle
-            const bassValue = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 2000;
+            // Centrum
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius * bassValue, 0, Math.PI * 2);
             const gradient = ctx.createRadialGradient(
                 centerX, centerY, 0,
                 centerX, centerY, radius * bassValue
             );
-            gradient.addColorStop(0, `hsla(${time * 10}, 100%, 50%, 0.8)`);
+            gradient.addColorStop(0, `hsla(300, 100%, 50%, 0.8)`); // Różowy
             gradient.addColorStop(1, 'transparent');
             ctx.fillStyle = gradient;
             ctx.shadowBlur = 30;
-            ctx.shadowColor = `hsl(${time * 10}, 100%, 50%)`;
+            ctx.shadowColor = `hsl(300, 100%, 50%)`; // Różowy
             ctx.fill();
             
-            // Update time
             time += 0.05;
         }
 
