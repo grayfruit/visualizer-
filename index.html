@@ -10,6 +10,9 @@
         canvas {
             width: 100vw;
             height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
         #startBtn {
             position: fixed;
@@ -22,10 +25,11 @@
             border: 1px solid rgba(255,255,255,0.5);
             color: rgba(255,255,255,0.9);
             cursor: pointer;
-            border-radius: 25px;
+            border-radius: 3px;
             font-family: monospace;
             transition: all 0.4s ease;
             letter-spacing: 2px;
+            z-index: 100;
         }
         #startBtn:hover {
             background: rgba(255,255,255,0.1);
@@ -35,54 +39,29 @@
 </head>
 <body>
     <button id="startBtn">initialize</button>
-    <canvas id="canvas"></canvas>
-
+    <canvas id="mainCanvas"></canvas>
+    <canvas id="glitchCanvas"></canvas>
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+        const mainCanvas = document.getElementById('mainCanvas');
+        const mainCtx = mainCanvas.getContext('2d');
+        const glitchCanvas = document.getElementById('glitchCanvas');
+        const glitchCtx = glitchCanvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
         
         let audioCtx;
         let analyser;
         let dataArray;
         let isPlaying = false;
-        let points = [];
-        
-        const colors = [
-            { r: 100, g: 180, b: 255 },    
-            { r: 150, g: 120, b: 255 },    
-            { r: 255, g: 130, b: 180 },    
-            { r: 130, g: 255, b: 200 }     
-        ];
 
         function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            initPoints();
+            mainCanvas.width = window.innerWidth;
+            mainCanvas.height = window.innerHeight;
+            glitchCanvas.width = window.innerWidth;
+            glitchCanvas.height = window.innerHeight;
         }
         
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
-
-        function initPoints() {
-            points = [];
-            const rows = 5;
-            const cols = 5;
-            const cellWidth = canvas.width / (cols - 1);
-            const cellHeight = canvas.height / (rows - 1);
-
-            for (let y = 0; y < rows; y++) {
-                for (let x = 0; x < cols; x++) {
-                    points.push({
-                        x: x * cellWidth,
-                        y: y * cellHeight,
-                        baseX: x * cellWidth,
-                        baseY: y * cellHeight,
-                        angle: 0
-                    });
-                }
-            }
-        }
 
         startBtn.addEventListener('click', async () => {
             if (!audioCtx) {
@@ -106,108 +85,116 @@
             }
         });
 
-        function lerpColor(color1, color2, factor) {
-            return {
-                r: Math.round(color1.r + (color2.r - color1.r) * factor),
-                g: Math.round(color1.g + (color2.g - color1.g) * factor),
-                b: Math.round(color1.b + (color2.b - color1.b) * factor)
-            };
-        }
-
-        function updatePoints(frequencyData) {
-            const bassValue = frequencyData.slice(0, 10).reduce((a, b) => a + b, 0) / 800;
+        function createGlitchEffect(ctx, intensity) {
+            const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+            const data = imageData.data;
             
-            points.forEach((point, i) => {
-                point.angle += bassValue * 0.05;
+            // RGB Split
+            const splitAmount = Math.floor(intensity * 20);
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = ctx.canvas.width;
+            tempCanvas.height = ctx.canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Red channel
+            tempCtx.drawImage(ctx.canvas, -splitAmount, 0);
+            const redData = tempCtx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data;
+            
+            // Blue channel
+            tempCtx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            tempCtx.drawImage(ctx.canvas, splitAmount, 0);
+            const blueData = tempCtx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data;
+
+            // Combine channels with glitch
+            for (let i = 0; i < data.length; i += 4) {
+                if (Math.random() < intensity * 0.1) {
+                    data[i] = data[i + 4] || data[i]; // Red glitch
+                    data[i + 2] = data[i + 6] || data[i + 2]; // Blue glitch
+                }
                 
-                const distanceFromCenter = Math.hypot(
-                    point.baseX - canvas.width/2,
-                    point.baseY - canvas.height/2
-                ) / Math.hypot(canvas.width/2, canvas.height/2);
+                // RGB Split
+                data[i] = redData[i]; // Red
+                data[i + 2] = blueData[i + 2]; // Blue
+
+                // Random noise
+                if (Math.random() < intensity * 0.05) {
+                    data[i] = data[i + 1] = data[i + 2] = Math.random() * 255;
+                }
+
+                // Scan lines
+                if ((Math.floor(i / 4 / ctx.canvas.width) % 2) === 0 && Math.random() < intensity * 0.2) {
+                    data[i] = data[i + 1] = data[i + 2] = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+
+            // Horizontal glitch blocks
+            if (Math.random() < intensity * 0.5) {
+                const blockHeight = Math.random() * 50;
+                const blockY = Math.random() * ctx.canvas.height;
+                const blockShift = (Math.random() - 0.5) * intensity * 100;
                 
-                const amplitude = 180 * (1 - distanceFromCenter) * bassValue * 5;
-                
-                point.x = point.baseX + Math.cos(point.angle) * amplitude;
-                point.y = point.baseY + Math.sin(point.angle * 1.5) * amplitude;
-            });
+                const blockData = ctx.getImageData(0, blockY, ctx.canvas.width, blockHeight);
+                ctx.putImageData(blockData, blockShift, blockY);
+            }
         }
 
-        function drawLiquidShape(frequencyData) {
+        function drawBaseShape(ctx, intensity) {
+            const centerX = ctx.canvas.width / 2;
+            const centerY = ctx.canvas.height / 2;
+            const maxRadius = Math.min(ctx.canvas.width, ctx.canvas.height) * 0.4;
+
             ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-            const gradient = ctx.createRadialGradient(
-                canvas.width/2, canvas.height/2, 0,
-                canvas.width/2, canvas.height/2, canvas.width/2
-            );
-            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
-            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            for (let row = 0; row < 4; row++) {
-                for (let col = 0; col < 4; col++) {
-                    const index = row * 5 + col;
-                    const p0 = points[index];
-                    const p1 = points[index + 1];
-                    const p2 = points[index + 5];
-                    const p3 = points[index + 6];
-
-                    const freqIndex = (row * 4 + col) * 8;
-                    const intensity = frequencyData.slice(freqIndex, freqIndex + 8).reduce((a, b) => a + b, 0) / 800;
+            // Główny kształt
+            for (let i = 0; i < 3; i++) {
+                const angle = intensity * Math.PI * 2;
+                const radius = maxRadius * (1 + intensity * 0.5);
+                
+                ctx.beginPath();
+                for (let a = 0; a < Math.PI * 2; a += 0.1) {
+                    const r = radius * (1 + Math.sin(a * 3 + angle) * 0.2 * intensity);
+                    const x = centerX + Math.cos(a) * r;
+                    const y = centerY + Math.sin(a) * r;
                     
-                    ctx.beginPath();
-                    ctx.moveTo(p0.x + 5, p0.y + 5);
-                    
-                    const cpX1 = p0.x + (p3.x - p0.x) / 3 + 5;
-                    const cpY1 = p0.y + (p3.y - p0.y) / 3 + 5;
-                    const cpX2 = p0.x + 2 * (p3.x - p0.x) / 3 + 5;
-                    const cpY2 = p0.y + 2 * (p3.y - p0.y) / 3 + 5;
-                    
-                    ctx.bezierCurveTo(cpX1, cpY1, cpX2, cpY2, p3.x + 5, p3.y + 5);
-                    ctx.lineTo(p2.x + 5, p2.y + 5);
-                    
-                    const cpX3 = p2.x + (p1.x - p2.x) / 3 + 5;
-                    const cpY3 = p2.y + (p1.y - p2.y) / 3 + 5;
-                    const cpX4 = p2.x + 2 * (p1.x - p2.x) / 3 + 5;
-                    const cpY4 = p2.y + 2 * (p1.y - p2.y) / 3 + 5;
-                    
-                    ctx.bezierCurveTo(cpX3, cpY3, cpX4, cpY4, p1.x + 5, p1.y + 5);
-                    ctx.closePath();
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                    ctx.fill();
-
-                    ctx.beginPath();
-                    ctx.moveTo(p0.x, p0.y);
-                    
-                    const color1 = colors[row % colors.length];
-                    const color2 = colors[(row + 1) % colors.length];
-                    const mixedColor = lerpColor(color1, color2, intensity);
-
-                    const shapeGradient = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
-                    shapeGradient.addColorStop(0, `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.8)`);
-                    shapeGradient.addColorStop(1, `rgba(${color2.r}, ${color2.g}, ${color2.b}, 0.6)`);
-
-                    ctx.bezierCurveTo(cpX1-5, cpY1-5, cpX2-5, cpY2-5, p3.x, p3.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.bezierCurveTo(cpX3-5, cpY3-5, cpX4-5, cpY4-5, p1.x, p1.y);
-                    ctx.closePath();
-                    
-                    ctx.fillStyle = shapeGradient;
-                    ctx.fill();
-
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + intensity * 0.4})`;
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
+                    if (a === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
                 }
+                ctx.closePath();
+                
+                const hue = (200 + i * 120 + intensity * 60) % 360;
+                ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${0.5 - i * 0.1})`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
             }
         }
 
         function animate() {
             if (!isPlaying) return;
+            
             analyser.getByteFrequencyData(dataArray);
-            updatePoints(dataArray);
-            drawLiquidShape(dataArray);
+            
+            // Oblicz intensywność dla różnych zakresów częstotliwości
+            const bassIntensity = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 2000;
+            const midIntensity = dataArray.slice(100, 200).reduce((a, b) => a + b, 0) / 4000;
+            const highIntensity = dataArray.slice(200, 300).reduce((a, b) => a + b, 0) / 6000;
+            
+            // Rysuj podstawowy kształt
+            drawBaseShape(mainCtx, bassIntensity);
+            
+            // Kopiuj do kanwy glitch
+            glitchCtx.clearRect(0, 0, glitchCanvas.width, glitchCanvas.height);
+            glitchCtx.drawImage(mainCanvas, 0, 0);
+            
+            // Aplikuj efekty glitch
+            const totalIntensity = (bassIntensity + midIntensity + highIntensity) / 3;
+            createGlitchEffect(glitchCtx, totalIntensity);
+            
             requestAnimationFrame(animate);
         }
     </script>
