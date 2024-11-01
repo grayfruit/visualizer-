@@ -49,12 +49,11 @@
         let time = 0;
         let points = [];
         
-        // Jaśniejsza paleta kolorów
         const colors = [
-            { r: 100, g: 180, b: 255 },    // Jasny niebieski
-            { r: 150, g: 120, b: 255 },    // Jasny fioletowy
-            { r: 255, g: 130, b: 180 },    // Jasny różowy
-            { r: 130, g: 255, b: 200 }     // Jasny turkusowy
+            { r: 100, g: 180, b: 255 },    
+            { r: 150, g: 120, b: 255 },    
+            { r: 255, g: 130, b: 180 },    
+            { r: 130, g: 255, b: 200 }     
         ];
 
         function resizeCanvas() {
@@ -117,19 +116,18 @@
         }
 
         function updatePoints(frequencyData) {
-            const bassValue = frequencyData.slice(0, 10).reduce((a, b) => a + b, 0) / 2000;
-            const midValue = frequencyData.slice(100, 200).reduce((a, b) => a + b, 0) / 10000;
+            const bassValue = frequencyData.slice(0, 10).reduce((a, b) => a + b, 0) / 800;
+            const midValue = frequencyData.slice(100, 200).reduce((a, b) => a + b, 0) / 4000;
             
             points.forEach((point, i) => {
-                point.angle += 0.02 + bassValue * 0.01;
+                point.angle += 0.03 + bassValue * 0.02;
                 
                 const distanceFromCenter = Math.hypot(
                     point.baseX - canvas.width/2,
                     point.baseY - canvas.height/2
                 ) / Math.hypot(canvas.width/2, canvas.height/2);
                 
-                const amplitude = 70 * (1 - distanceFromCenter) * (1 + bassValue * 2);
-                const frequency = 0.002 + midValue * 0.001;
+                const amplitude = 180 * (1 - distanceFromCenter) * (1 + bassValue * 5);
                 
                 point.x = point.baseX + Math.cos(point.angle) * amplitude;
                 point.y = point.baseY + Math.sin(point.angle * 1.5) * amplitude;
@@ -137,11 +135,9 @@
         }
 
         function drawLiquidShape(frequencyData) {
-            // Ciemne, ale nie czarne tło
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Dodaj subtelną poświatę w tle
             const gradient = ctx.createRadialGradient(
                 canvas.width/2, canvas.height/2, 0,
                 canvas.width/2, canvas.height/2, canvas.width/2
@@ -160,9 +156,8 @@
                     const p3 = points[index + 6];
 
                     const freqIndex = (row * 4 + col) * 8;
-                    const intensity = frequencyData.slice(freqIndex, freqIndex + 8).reduce((a, b) => a + b, 0) / 2040;
+                    const intensity = frequencyData.slice(freqIndex, freqIndex + 8).reduce((a, b) => a + b, 0) / 800;
                     
-                    // Rysuj cień dla efektu głębi
                     ctx.beginPath();
                     ctx.moveTo(p0.x + 5, p0.y + 5);
                     
@@ -181,10 +176,9 @@
                     
                     ctx.bezierCurveTo(cpX3, cpY3, cpX4, cpY4, p1.x + 5, p1.y + 5);
                     ctx.closePath();
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
                     ctx.fill();
 
-                    // Główny kształt
                     ctx.beginPath();
                     ctx.moveTo(p0.x, p0.y);
                     
@@ -204,9 +198,8 @@
                     ctx.fillStyle = shapeGradient;
                     ctx.fill();
 
-                    // Dodaj świecące krawędzie
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 + intensity * 0.3})`;
-                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + intensity * 0.4})`;
+                    ctx.lineWidth = 1.5;
                     ctx.stroke();
                 }
             }
@@ -214,12 +207,10 @@
 
         function animate() {
             if (!isPlaying) return;
-            
             analyser.getByteFrequencyData(dataArray);
             updatePoints(dataArray);
             drawLiquidShape(dataArray);
             time += 0.01;
-            
             requestAnimationFrame(animate);
         }
     </script>
