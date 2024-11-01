@@ -128,7 +128,7 @@
                 const amplitude = 180 * (1 - distanceFromCenter) * bassValue * 5;
                 
                 point.x = point.baseX + Math.cos(point.angle) * amplitude;
-                point.y = point.baseY + Math.sin(point.angle * 1.5) * amplitude;
+                point.y = point.baseY + Math.sin(point.angle * 2.5) * amplitude;
             });
         }
 
@@ -196,7 +196,7 @@
                     ctx.fillStyle = shapeGradient;
                     ctx.fill();
 
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + intensity * 0.4})`;
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 + intensity * 0.6})`;
                     ctx.lineWidth = 1.5;
                     ctx.stroke();
                 }
