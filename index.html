@@ -5,14 +5,11 @@
         body { 
             margin: 0;
             overflow: hidden;
-            background: #1a1a2e;
+            background: #000;
         }
         canvas {
             width: 100vw;
             height: 100vh;
-            position: absolute;
-            top: 0;
-            left: 0;
         }
         #startBtn {
             position: fixed;
@@ -27,25 +24,16 @@
             cursor: pointer;
             border-radius: 3px;
             font-family: monospace;
-            transition: all 0.4s ease;
-            letter-spacing: 2px;
-            z-index: 100;
-        }
-        #startBtn:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.8);
         }
     </style>
 </head>
 <body>
     <button id="startBtn">initialize</button>
-    <canvas id="mainCanvas"></canvas>
-    <canvas id="glitchCanvas"></canvas>
+    <canvas id="canvas"></canvas>
+
     <script>
-        const mainCanvas = document.getElementById('mainCanvas');
-        const mainCtx = mainCanvas.getContext('2d');
-        const glitchCanvas = document.getElementById('glitchCanvas');
-        const glitchCtx = glitchCanvas.getContext('2d');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
         
         let audioCtx;
@@ -54,10 +42,8 @@
         let isPlaying = false;
 
         function resizeCanvas() {
-            mainCanvas.width = window.innerWidth;
-            mainCanvas.height = window.innerHeight;
-            glitchCanvas.width = window.innerWidth;
-            glitchCanvas.height = window.innerHeight;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
         }
         
         window.addEventListener('resize', resizeCanvas);
@@ -68,7 +54,7 @@
                 try {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 1024;
+                    analyser.fftSize = 512;
                     
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const source = audioCtx.createMediaStreamSource(stream);
@@ -79,98 +65,59 @@
                     isPlaying = true;
                     animate();
                 } catch (err) {
-                    console.error('Error:', err);
                     alert('Please allow microphone access for visualization');
                 }
             }
         });
 
-        function createGlitchEffect(ctx, intensity) {
-            const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
-            const data = imageData.data;
+        function draw(intensity) {
+            const w = canvas.width;
+            const h = canvas.height;
             
-            // RGB Split
-            const splitAmount = Math.floor(intensity * 20);
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = ctx.canvas.width;
-            tempCanvas.height = ctx.canvas.height;
-            const tempCtx = tempCanvas.getContext('2d');
+            // Wyczyść canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
             
-            // Red channel
-            tempCtx.drawImage(ctx.canvas, -splitAmount, 0);
-            const redData = tempCtx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data;
+            // Podstawowy kształt
+            const size = Math.min(w, h) * 0.4;
+            const x = w / 2;
+            const y = h / 2;
             
-            // Blue channel
-            tempCtx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-            tempCtx.drawImage(ctx.canvas, splitAmount, 0);
-            const blueData = tempCtx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data;
+            // Rysuj z przesunięciem RGB
+            const offset = intensity * 20;
 
-            // Combine channels with glitch
-            for (let i = 0; i < data.length; i += 4) {
-                if (Math.random() < intensity * 0.1) {
-                    data[i] = data[i + 4] || data[i]; // Red glitch
-                    data[i + 2] = data[i + 6] || data[i + 2]; // Blue glitch
-                }
-                
-                // RGB Split
-                data[i] = redData[i]; // Red
-                data[i + 2] = blueData[i + 2]; // Blue
+            // Niebieski kanał
+            ctx.beginPath();
+            ctx.arc(x - offset, y, size, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(0,0,255,0.5)';
+            ctx.stroke();
 
-                // Random noise
-                if (Math.random() < intensity * 0.05) {
-                    data[i] = data[i + 1] = data[i + 2] = Math.random() * 255;
-                }
+            // Czerwony kanał
+            ctx.beginPath();
+            ctx.arc(x + offset, y, size, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,0,0,0.5)';
+            ctx.stroke();
 
-                // Scan lines
-                if ((Math.floor(i / 4 / ctx.canvas.width) % 2) === 0 && Math.random() < intensity * 0.2) {
-                    data[i] = data[i + 1] = data[i + 2] = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                }
-            }
+            // Zielony kanał
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(0,255,0,0.5)';
+            ctx.stroke();
 
-            ctx.putImageData(imageData, 0, 0);
-
-            // Horizontal glitch blocks
+            // Losowe linie glitch
             if (Math.random() < intensity * 0.5) {
-                const blockHeight = Math.random() * 50;
-                const blockY = Math.random() * ctx.canvas.height;
-                const blockShift = (Math.random() - 0.5) * intensity * 100;
-                
-                const blockData = ctx.getImageData(0, blockY, ctx.canvas.width, blockHeight);
-                ctx.putImageData(blockData, blockShift, blockY);
+                const lineY = Math.random() * h;
+                const lineHeight = Math.random() * 20;
+                ctx.fillStyle = `rgba(255,255,255,${intensity})`;
+                ctx.fillRect(0, lineY, w, lineHeight);
             }
-        }
 
-        function drawBaseShape(ctx, intensity) {
-            const centerX = ctx.canvas.width / 2;
-            const centerY = ctx.canvas.height / 2;
-            const maxRadius = Math.min(ctx.canvas.width, ctx.canvas.height) * 0.4;
-
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-            // Główny kształt
-            for (let i = 0; i < 3; i++) {
-                const angle = intensity * Math.PI * 2;
-                const radius = maxRadius * (1 + intensity * 0.5);
-                
-                ctx.beginPath();
-                for (let a = 0; a < Math.PI * 2; a += 0.1) {
-                    const r = radius * (1 + Math.sin(a * 3 + angle) * 0.2 * intensity);
-                    const x = centerX + Math.cos(a) * r;
-                    const y = centerY + Math.sin(a) * r;
-                    
-                    if (a === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        ctx.lineTo(x, y);
-                    }
-                }
-                ctx.closePath();
-                
-                const hue = (200 + i * 120 + intensity * 60) % 360;
-                ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${0.5 - i * 0.1})`;
-                ctx.lineWidth = 2;
-                ctx.stroke();
+            // Przesunięcie bloków
+            if (Math.random() < intensity * 0.3) {
+                const blockY = Math.random() * h;
+                const blockHeight = 50;
+                const imageData = ctx.getImageData(0, blockY, w, blockHeight);
+                ctx.putImageData(imageData, intensity * 100 * (Math.random() - 0.5), blockY);
             }
         }
 
@@ -179,22 +126,10 @@
             
             analyser.getByteFrequencyData(dataArray);
             
-            // Oblicz intensywność dla różnych zakresów częstotliwości
-            const bassIntensity = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 2000;
-            const midIntensity = dataArray.slice(100, 200).reduce((a, b) => a + b, 0) / 4000;
-            const highIntensity = dataArray.slice(200, 300).reduce((a, b) => a + b, 0) / 6000;
+            // Oblicz intensywność (głównie z basów)
+            const intensity = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 1000;
             
-            // Rysuj podstawowy kształt
-            drawBaseShape(mainCtx, bassIntensity);
-            
-            // Kopiuj do kanwy glitch
-            glitchCtx.clearRect(0, 0, glitchCanvas.width, glitchCanvas.height);
-            glitchCtx.drawImage(mainCanvas, 0, 0);
-            
-            // Aplikuj efekty glitch
-            const totalIntensity = (bassIntensity + midIntensity + highIntensity) / 3;
-            createGlitchEffect(glitchCtx, totalIntensity);
-            
+            draw(intensity);
             requestAnimationFrame(animate);
         }
     </script>
