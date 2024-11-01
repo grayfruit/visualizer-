@@ -1,1 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { 
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+        #startBtn {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 18px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid white;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            transition: all 0.3s ease;
+        }
+        #startBtn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+    <button id="startBtn">Start Visualization</button>
+    <canvas id="canvas"></canvas>
 
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        
+        let audioCtx;
+        let analyser;
+        let dataArray;
+        let animationId;
+        let isPlaying = false;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        startBtn.addEventListener('click', async () => {
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 2048;
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    source.connect(analyser);
+                    
+                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    startBtn.style.display = 'none';
+                    isPlaying = true;
+                    animate();
+                } catch (err) {
+                    console.error('Error:', err);
+                    alert('Please allow microphone access for visualization');
+                }
+            }
+        });
+
+        function getColorForFrequency(value) {
+            // Gradient from purple to blue to cyan
+            const hue = 180 + (value / 255) * 60;
+            return `hsl(${hue}, 70%, 50%)`;
+        }
+
+        function drawVisualization() {
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Semi-transparent fade effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const maxRadius = Math.min(canvas.width, canvas.height) * 0.4;
+            
+            // Draw circular visualizer
+            const binCount = 180; // Number of frequency bins to display
+            const angleStep = (Math.PI * 2) / binCount;
+            const radiusStep = maxRadius / 32;
+            
+            for (let i = 0; i < binCount; i++) {
+                const value = dataArray[i];
+                const angle = i * angleStep;
+                
+                // Inner circle
+                let radius = maxRadius * 0.2 + (value / 255) * radiusStep;
+                const x1 = centerX + Math.cos(angle) * radius;
+                const y1 = centerY + Math.sin(angle) * radius;
+                
+                // Outer circle
+                radius = maxRadius * 0.6 + (value / 255) * radiusStep;
+                const x2 = centerX + Math.cos(angle) * radius;
+                const y2 = centerY + Math.sin(angle) * radius;
+                
+                // Draw lines
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = getColorForFrequency(value);
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw glow effect
+                if (value > 200) {
+                    ctx.beginPath();
+                    const glowRadius = 5 + (value / 255) * 10;
+                    ctx.arc(x2, y2, glowRadius, 0, Math.PI * 2);
+                    const gradient = ctx.createRadialGradient(x2, y2, 0, x2, y2, glowRadius);
+                    gradient.addColorStop(0, `hsla(${180 + (value / 255) * 60}, 70%, 50%, 0.3)`);
+                    gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                }
+            }
+            
+            // Draw center circle
+            const bassValue = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, maxRadius * 0.15 * (1 + bassValue/255 * 0.2), 0, Math.PI * 2);
+            ctx.fillStyle = `hsla(180, 70%, ${40 + bassValue/255 * 20}%, 0.3)`;
+            ctx.fill();
+        }
+
+        function animate() {
+            if (!isPlaying) return;
+            drawVisualization();
+            animationId = requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>
